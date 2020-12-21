@@ -1,0 +1,478 @@
+---
+title: "FIFA 2019 Player"
+author: '4강가조'
+date: "2019년 5월 17일"
+output: html_document
+---
+
+2018년 러시아 월드컵이 열리고 많은 사람들사이에서 이슈화가 되었습니다. 4년마다 열리는 월드컵에서 우리나라는 2002년 대한민국이 4강에 오른이후 더욱이 기대와 관심을 가지고있습니다. 그래서 주제를 찾던중에 축구선수와 관련된 주제를 찾게되어 우리가 축구경기를 볼때 축구선수들에대한 정보를 가지고 경기를 본다면 좀 더 재미있게 볼수있지 않을까 생각되어 주제를 정하게 되었습니다.
+
+FIFA19(2018년 데이터에서 추출한 89가지 속성)들을 나타낸 데이터 입니다.
+해당 데이터에서 개별 데이터와 연관 지을 수 있는 데이터들을 분석해보겠습니다. 
+
+```{r, warning= F, message= F}
+knitr::include_graphics("./pic.jpg", dpi = 84)
+```
+
+
+#피파 19시즌 플레이어 데이터 불러오기
+```{r, warning= F, message= F}
+
+fifaAll <- read.csv("data2.csv", header = T, stringsAsFactors = F, encoding = "CP949")
+fifa <- fifaAll[c(1:900),]
+str(fifa)
+
+
+```
+<P style = "page-break-before:always">
+# 선수가치 데이터 전처리
+```{r, warning= F, message= F}
+library(ggplot2)
+#선수들의 주급, 선수가치의 원화 환산값은 엄청 크기 때문에 지수 승이 아닌 정수로 모두 나타내 주기 위해 사용
+options(scipen = 100)
+
+#wage = 주급, value = 선수가치 
+head(fifa$Value)
+# 현재 선수가치변수에 문자열이 붙어있어 캐릭터형이기 때문에
+# 유로(€) 문자를 제거해준다 
+fifa$Value <- substr(fifa$Value,2,10)
+
+# 영어M 을제거해준다 
+fifa$Value <- gsub(x =fifa$Value, pattern = "[A-Z]", 
+               replacement = "")
+
+# 모두 숫자이지만 아직 캐릭터형
+str(fifa$Value)
+
+# 타입을 numeric으로 바꿔준다
+fifa$Value <- as.numeric(fifa$Value)
+str(fifa$Value)
+
+# 이제 numeric타입의 선수가치에 우리나라(원)으로 변경하는 과정 
+# M 은 0을 6추가 해줘야한다 (10^6 을 곱해준다 )
+for(i in 1 : nrow(fifa)){
+  fifa$Value[i] <- fifa$Value[i] * 1000000
+}
+# 현재 유로화 가치 1유로당 1,335원을 적용 시켜 원화로 만들어준다 
+for(i in 1 : nrow(fifa)){
+  fifa$Value[i] <- fifa$Value[i] * 1335
+}
+
+head(fifa$Value)
+
+```
+<P style = "page-break-before:always">
+# 마찬가지로 주급도 같은과정을 통해 전처리 
+```{r, warning= F, message= F}
+head(fifa$Wage)
+fifa$Wage <- substr(fifa$Wage,2,10)
+fifa$Wage <- gsub(x =fifa$Wage, pattern = "[A-Z]", 
+               replacement = "")
+str(fifa$Wage)
+fifa$Wage <- as.numeric(fifa$Wage)
+str(fifa$Wage)
+
+# 이제 numeric타입의 선수가치에 우리나라(원)으로 변경하는 과정 
+# K 는 0을 3개 추가 해줘야한다 (10^3 을 곱해준다 )
+for(i in 1 : nrow(fifa)){
+  fifa$Wage[i] <- fifa$Wage[i] * 1000
+}
+# 현재 유로화 가치 1유로당 1,335원을 적용 시켜 원화로 만들어준다 
+for(i in 1 : nrow(fifa)){
+  fifa$Wage[i] <- fifa$Wage[i] * 1335
+}
+
+head(fifa$Wage)
+
+```
+<P style = "page-break-before:always">
+# 선수의 몸무게(파운드)를 kg단위로 변경 
+```{r, warning= F, message= F}
+head(fifa$Weight)
+fifa$Weight <- gsub(x =fifa$Weight, pattern = "[a-z]", 
+               replacement = "")
+
+str(fifa$Weight)
+fifa$Weight <- as.numeric(fifa$Weight)
+str(fifa$Weight)
+
+# 파운드를 kg으로 변경하는 공식 파운드 / 2.205
+for(i in 1 : nrow(fifa)){
+  fifa$Weight[i] <- round(fifa$Weight[i] / 2.205,2)
+}
+
+head(fifa$Weight)
+```
+<P style = "page-break-before:always">
+# 선수의 키(피트인치)를 cm로 변경
+```{r, warning= F, message= F}
+head(fifa$Height)
+head(strsplit(fifa$Height,"'"))
+fifa$Height <- strsplit(fifa$Height,"'")
+
+
+heightSum <- c()
+
+# 앞자리는 피트 , 뒷자리는 인치 이기 때문에
+# 앞자리에는 * 30.48, 뒷자리에는 * 2.54를 하고 더해주면 cm로 변환 가능 
+for(i in 1 : nrow(fifa)){
+  heightSum[i] <- (as.numeric(fifa$Height[[i]][1])*30.48) + (as.numeric(fifa$Height[[i]][2])*2.54)
+}
+
+fifa$Height <- heightSum
+
+head(fifa$Height)
+```
+
+<P style = "page-break-before:always">
+#선수가치가 높은 상위 10명의 선수 
+```{r, warning= F, message= F}
+library(knitr)
+head(order(fifa$Value, decreasing =  T), 10)
+
+#선수가치가 높은 상위 10명의 선수 이름
+fifa[head(order(fifa$Value, decreasing =  T), 10),]$Name
+#선수가치가 높은 상위 10명의 선수 가치 
+fifa[head(order(fifa$Value, decreasing =  T), 10),]$Value
+
+fifa10 <- data.frame(Name = fifa[head(order(fifa$Value, decreasing =  T), 10),]$Name, Value = fifa[head(order(fifa$Value, decreasing =  T), 10),]$Value)
+
+names(fifa10) <- c("Name", "Value(단위 :원)")
+
+fifa10
+```
+
+<P style = "page-break-before:always">
+#선수가치가 높은 선수들 100명의 국적 분포
+```{r, warning= F, message= F}
+library(knitr)
+head(order(fifa$Value, decreasing = T),100)
+ValueOf <- fifa[head(order(fifa$Value, decreasing = T),100),]
+national_tbl <-table(ValueOf$Nationality)
+national_df <- data.frame(national_tbl)
+names(national_df) <- c("국적", "선수의 수")
+national_df$`선수의 수` <- sort(national_df$`선수의 수`, decreasing = T)
+kable(national_df)
+print(" ") #kable출력오류때문에 사용
+```
+
+<P style = "page-break-before:always">
+#선수가치가 높은 선수들 100명의 구단 분포 
+```{r, warning= F, message= F}
+library(knitr)
+head(order(fifa$Value, decreasing = T),100)
+ValueOf <- fifa[head(order(fifa$Value, decreasing = T),100),]
+Club_tbl <-table(ValueOf$Club)
+Club_df <- data.frame(Club_tbl)
+names(Club_df) <- c("구단", "선수의 수")
+Club_df$`선수의 수` <- sort(Club_df$`선수의 수`, decreasing = T)
+kable(Club_df)
+print(" ") #kable출력오류때문에 사용
+```
+
+<P style = "page-break-before:always">
+#선수들이 선호하는 발의 방향 
+```{r, warning= F, message= F}
+
+preferFoot <- data.frame(table(fifa$Preferred.Foot))
+colnames(preferFoot) <- c("선호하는 발", "선호하는 선수의 수")
+
+footPct <- round(preferFoot$`선호하는 선수의 수`/sum(preferFoot$`선호하는 선수의 수`) * 100,2)
+
+footPct <- paste0(preferFoot$`선호하는 발`,"\n",preferFoot$`선호하는 선수의 수`,"명\n",footPct,"%")
+
+
+
+ggplot(preferFoot,aes("",preferFoot$`선호하는 선수의 수`,fill = preferFoot$`선호하는 발`)) + geom_bar(stat = "identity") + coord_polar("y", start=0) + 
+  geom_text(aes(label =footPct), position = position_stack(vjust = 0.5), cex = 4) +
+  theme_classic() + theme(axis.line = element_blank(),
+          axis.text = element_blank(),
+          axis.ticks = element_blank(),
+          plot.title = element_text(hjust = 0.5, color = "#666666", size = 22)) +
+  labs(x = NULL, y = NULL, fill = "선호하는 발 ", title = "선수 들이 선호하는 발의 방향")
+
+```
+<P style = "page-break-before:always">
+#포지션별 선수가치 상자그림 
+
+ST: 스트라이커
+GK : 골키퍼 (goalkeeper) 공이 골에 들어가는 것을 막는 역할을 하는 포지션. 공을 손으로 만지는 것이 허용되는 유일한 선수이다.
+CB : 중앙수비수, 센터백
+CM : 중앙미드필더
+LB : 레프트백 (left back) 필드의 왼쪽을 담당하는 수비 포지션. 주요 역할은 상대 팀이 골을 향해 가는 것을 지연시키거나 막는 것이다.
+RB : 라이트백
+RM : [RM] Right Midfielder 오른쪽 측면 미드필더
+LM : [LM] Left Midfielder 왼쪽 측면 미드필더, 레프트 미드필더 (left midfielder) 필드의 왼쪽에서 경기하는 중앙 포지션. 공을 공격수에게 패스하는 경기 운영 기술을 사용한다.
+CAM : 공격형미드필더 ,센터 어태킹 미드필더 (Center atacking midfielder)
+CDM : 중앙 수비형 미드필더입니다
+RCB : [RCB] Right Center Back 오른쪽 중앙 수비수
+LCB : [LCB] Left Center Back 왼쪽 중앙 수비수 
+LCM : [LCM] Left Center Midfielder 왼쪽 중앙 미드필더 
+RCM : [RCM] Right Center Midfielder 오른쪽 중앙 미드필더
+LW : 왼쪽윙어
+RW : 오른쪽윙어  
+RDM : 오른쪽 수비형미드필더
+LDM : 왼쪽 수비형 미드필더
+LS : [LS] Left Striker 왼쪽 스트라이커 
+RS : [RS] Right Striker 오른쪽 스트라이커
+RWB : [RWB] Right Wing Back 오른쪽 윙백
+LWB : [LWB] Left Wing Back 왼쪽 윙백 
+CF : 중앙공격수
+LAM : [LAM] Left Attacking Midfielder 왼쪽 공격형 미드필더 
+RAM : [RAM]Right Attacking Midfielder 오른쪽 공격형 미드필더
+RF : 오른쪽 공격수
+LF : 왼쪽공격수
+```{r, warning= F, message= F}
+
+value_position <- split(fifa$Value, fifa$Position)
+boxplot(value_position$RF,value_position$CF,value_position$LF, names = c("오른쪽 공격수", "중앙 공격수", "왼쪽 공격수"), main = "공격수들의 선수가치 상자그림", col = rainbow(3))
+
+median(value_position$RF) # 오른쪽 공격수의 선수가치 중앙값
+median(value_position$CF) # 중앙 공격수의 선수가치 중앙값
+median(value_position$LF) # 왼쪽 공격수의 선수가치 중앙값
+
+boxplot(value_position$RDM,value_position$CDM,value_position$LDM, names = c("오른쪽 수비형 미드필더", "중앙 수비형 미드필더","왼쪽 수비형 미드필더"),main = "수비형 미드필더의 선수가치 상자그림",
+col = rainbow(3))
+
+median(value_position$RDM) # 오른쪽 수비미 미드필더의 선수가치 중앙값
+median(value_position$CDM) # 중앙 수비형 미드필더의 선수가치 중앙값
+median(value_position$LDM) # 왼쪽 수비형 미드필더의 선수가치 중앙값
+
+boxplot(value_position$RAM,value_position$CAM,value_position$LAM, names = c("오른쪽 공격형 미드필더", "중앙 공격형 미드필더","왼쪽 공격형 미드필더"),main = "공격형 미드필더의 선수가치 상자그림", col = rainbow(3))
+
+median(value_position$RAM) # 오른쪽 공격형 미드필더의 선수가치 중앙값
+median(value_position$CAM) # 중앙 공격형 미드필더의 선수가치 중앙값
+median(value_position$LAM) # 왼쪽 공격형 미드필더의 선수가치 중앙값
+
+boxplot(value_position$GK, value_position$ST, names = c("골키퍼", "스트라이커"), main = "골키퍼와 스트라이커의 선수가치 상자그림 ", col = rainbow(2))
+
+median(value_position$GK) # 골키퍼의 선수가치 중앙값
+median(value_position$ST) # 스트라이커의 선수가치 중앙값
+
+```
+<P style = "page-break-before:always">
+#포지션별 선수의 분포 트리맵
+```{r, warning= F, message= F}
+library(DescTools)
+a <- data.frame(table(fifa$Position))
+colnames(a) <- c("position", "선수 수")
+PlotTreemap(x=a$`선수 수`, labels= a$position, main = "포지션별 선수의 분포 ")
+
+```
+
+<P style = "page-break-before:always">
+#선수들의 키 분포 
+```{r, warning= F, message= F}
+
+boxplot(fifa$Height, main = "키 분포 상자그림", ylab = "키(cm)")
+
+#선수들의 키 최대값
+max(fifa$Height)
+
+#선수들의 키 최소값 
+min(fifa$Height)
+
+#선수들의 키 중앙값
+median(fifa$Height)
+
+```
+  
+<P style = "page-break-before:always">
+#선수들의 몸무게 분포 
+```{r, warning= F, message= F}
+
+boxplot(fifa$Weight,  main = "몸무게 분포 상자그림", ylab = "몸무게(kg)")
+
+#선수들의 몸무게 최대값
+max(fifa$Weight)
+
+#선수들의 몸무게 최소값 
+min(fifa$Weight)
+
+#선수들의 몸무게 중앙값
+median(fifa$Weight)
+
+```
+
+
+<P style = "page-break-before:always">
+#키, 몸무게에 따른 점프력 산점도 
+```{r, warning= F, message= F}
+
+cor(fifa$Weight,fifa$Jumping)
+ggplot(fifa,aes(fifa$Weight,fifa$Jumping,colour = factor(round(fifa$Jumping,-1)))) + geom_point() + labs(x ="몸무게" ,y = "점프력", colour = "점프력", title = "몸무게에 따른 점프력 산점도")  + theme_bw()
+
+
+ggplot(fifa,aes(fifa$Height,fifa$Jumping,colour = factor(round(fifa$Jumping,-1)))) + geom_jitter() + labs(x ="키" ,y = "점프력", colour = "점프력", title = "키에 따른 점프력 산점도") + theme_bw()
+
+```
+
+<P style = "page-break-before:always">
+#선수들의 나이 분포
+```{r, warning= F, message= F}
+library(knitr)
+
+#전체 선수들의 나이 분포 
+kable(table(fifaAll$Age))
+
+#나이에서 10,20,30,40대를 설정해주는 함수 
+whatAge <- function(x){
+  a <- c()
+  for(i in 1 : nrow(fifaAll)){
+    if(x[i] < 20){
+      a[i] = 10
+    }else if(x[i] < 30){
+      a[i] = 20
+    }else if(x[i] < 40){
+      a[i] = 30
+    }else{
+      a[i] = 40
+    }
+  }
+  return(a)
+}
+
+tenTofourty <- table(whatAge(fifaAll$Age))
+tenTofourty
+
+AgeCount <- data.frame(tenTofourty)
+agePct <- round(tenTofourty/sum(tenTofourty) * 100,2)
+agePct <- paste0(names(tenTofourty),"대\n",tenTofourty,"명\n",agePct,"%")
+
+#선수들의 분포 
+
+ggplot(AgeCount,aes("",Freq,fill = Var1)) + geom_bar(stat = "identity") + coord_polar("y", start=90) + 
+  geom_text(aes(label =c(agePct[1:3],"")), position = position_stack(vjust = 0.5), cex = 4) +
+  theme_classic() + theme(axis.line = element_blank(),
+          axis.text = element_blank(),
+          axis.ticks = element_blank(),
+          plot.title = element_text(hjust = 0.5, color = "#666666", size = 35)) +
+  labs(x = NULL, y = NULL, fill = "나이", title = "선수들의 나이분포")
+
+```
+<P style = "page-break-before:always">
+#나이와 선수가치의 관계 
+```{r, warning= F, message= F}
+ggplot(fifa,aes(fifa$Age,fifa$Value,fill = factor(fifa$Age))) + geom_bar(stat = "identity" ,position = position_dodge()) + labs(x ="나이" ,y = "선수가치(원)", fill = "Age", title = "선수들의 나이와 선가치의 분포")  + theme_bw()
+```
+<P style = "page-break-before:always">
+#키와 몸무게별 구단 비교 
+```{r, warning= F, message= F}
+#축구 클럽 별 평균키가 큰 클럽들을 추출 
+clubHeight <- aggregate(fifa[27], list(Club = fifa$Club), mean)
+
+#평균키가 큰 상위 10개의 구단 
+topHeight <- head(clubHeight[order(clubHeight$Height,decreasing = T),],10)
+topHeight
+#축구 클럽 별 평균 몸무게가 큰 클럽들을 추출 
+clubWeight <- aggregate(fifa[28], list(Club = fifa$Club), mean)
+
+#평균 몸무게가 큰 상위 10개의 구단
+topWeight <- head(clubWeight[order(clubWeight$Weight,decreasing = T),],10)
+topWeight
+
+
+# 키가 큰 선수들이 모인 구단과 몸무게가 많이 나가는 구단이 겹칠 수 있는지 확인 
+for(i in 1 : 10){
+  if(topHeight$Club[i] %in% topWeight$Club[i] | topWeight$Club[i] %in% topHeight$Club[i]){
+    print(topHeight$Club[i])
+  }
+}
+
+#전체 데이터의 키와 몸무게에 대한 다중회귀분석 산점도 행렬 (전체적으로 봤을 때는 키가 클수록 몸무게도 큰편
+
+library(psych)
+
+pairs.panels(fifa[c(27,28)])
+
+```
+<P style = "page-break-before:always">
+#키가 크면 헤딩 정확성이 좋을지 알아보기 
+```{r, warning= F, message= F}
+#데이터에서 키가 큰 순서로 100명을 뽑는다 
+head(order(fifa$Height, decreasing = T),100)
+heightOfheading <- fifa[head(order(fifa$Height, decreasing = T),100),]
+
+#뽑은 100명의 headingAccuracy 확인 
+#키가 큰 다수의 선수들의 headingAccuracy가 10점대가 많은 것을 알 수 있음
+heightOfheading$HeadingAccuracy
+
+#키가 큰 순서 상위 100명 중 골키퍼 포지션을 포함한 포지션들의 키와 헤딩 정확성 비교
+ggplot(heightOfheading,aes(heightOfheading$Height,heightOfheading$HeadingAccuracy,fill = factor(round(heightOfheading$HeadingAccuracy,-1)))) + geom_bar(stat = "identity",position = position_dodge()) + labs(x ="키" ,y = "헤딩 정확성", fill = "헤딩 정확성\n(반올림)", title = "키가 큰 순서 상위 100명 중 골키퍼 포지션을 포함한 포지션들의 키와 헤딩 정확성 비교") + theme_bw()
+
+```
+<P style = "page-break-before:always">
+#혹시 키큰 선수의 데이터가 골키퍼가 아닐지 확인 
+```{r, warning= F, message= F}
+cnt = 0
+for(i in 1 : 100){
+  if(heightOfheading$Position[i] == "GK"){
+    cnt <- cnt + 1
+    print(paste0(heightOfheading$Name[i]," 선수는 골키퍼 입니다.키는 ",
+           heightOfheading$Height[i],"입니다. "," 상위 100명 중 골키퍼의 누적 수 : ",cnt))
+  }
+}
+```
+<P style = "page-break-before:always">
+#골키퍼는 키가 큰 선수들이 대부분이기 때문에 키큰선수들은 대부분 골키퍼였고 골키퍼가 헤딩을 할 기회는 흔치않기 때문에 키와 헤딩정확성의 관계는 비례하지 않았다 
+```{r, warning= F, message= F}
+nonGk <- c() #골키퍼를 제외한 포지션의 데이터를 저장할 벡터 
+for(i in 1 : nrow(fifa)){
+  if(!(fifa$Position[i] == "GK")){
+    nonGk[i] <- which(!(fifa$Position == "GK"))[i]
+  }
+}
+
+nonGk <- na.omit(nonGk)
+fifa_nonGk <- fifa[nonGk,]
+
+#전체적으로 키가 클수록 헤딩 정확성이 높은것을 볼 수 있다 
+ggplot(fifa_nonGk,aes(fifa_nonGk$Height,fifa_nonGk$HeadingAccuracy,fill = factor(round(fifa_nonGk$HeadingAccuracy,-1)))) + geom_bar(stat = "identity",position = position_stack()) + labs(x ="키" ,y = "헤딩 정확성", fill = "헤딩 정확성\n(반올림)", title = "골키퍼 포지션을 제외한 포지션들의 키와 헤딩 정확성 비교") + theme_bw()
+```
+<P style = "page-break-before:always">
+#주급을 많이받는 선수가 드리블 점수가 높을지 확인 
+```{r, warning= F, message= F}
+#데이터에서 드리블 점수가 높은 순으로 100명을 뽑는다 
+head(order(fifa$Dribbling, decreasing = T),100)
+dribblingOfwage <- fifa[head(order(fifa$Dribbling, decreasing = T),100),]
+
+#뽑은 100명의 wage 확인 
+dribblingOfwage$Wage
+
+
+#드리블 점수가 25 이하인 선수들의 포지션 확인 
+d_25under <- fifa[which(fifa$Dribbling <= 25),]
+d_25under$Position
+#드리블 점수가 25 이하인 선수 96 명 모두 포지션이 골키퍼 였다
+table(d_25under$Position)
+
+#드리블 점수 상위 100명의 드리블 점수와 주급의 관계
+ggplot(dribblingOfwage,aes(dribblingOfwage$Dribbling,dribblingOfwage$Wage,fill = factor(round(dribblingOfwage$Dribbling,-1)))) + geom_bar(stat = "identity",position = position_dodge()) + labs(x ="드리블 점수" ,y = "주급(원)", fill = "드리블 점수\n(반올림)", title = "드리블 점수와 주급의 관계") + theme_bw()
+
+
+#전체 데이터에서 드리블 점수와 주급의 관계
+ggplot(fifa,aes(fifa$Dribbling,fifa$Wage,fill = factor(round(fifa$Dribbling,-1)))) + geom_bar(stat = "identity",position = position_dodge()) + labs(x ="드리블 점수" ,y = "주급(원)", fill = "드리블 점수\n(반올림)", title = "드리블 점수와 주급의 관계") + theme_bw()
+```
+<P style = "page-break-before:always">
+#현재 선수가치가 높은 선수들이 많이 모인 구단이 어디 일지 알아보기 
+```{r, warning= F, message= F}
+#선수가치가 높은 순으로 데이터를 정렬한다
+sort_value <- fifa[order(fifa$Value, decreasing = T),]
+
+#선수가치가 높은 상위 100명의 선수의 구단을 확인한다 
+richClub <- data.frame(table(sort_value[1:100,]$Club))
+names(richClub) <- c("Club", "소속 선수 수(명)")
+richClub <- richClub[order(richClub$`소속 선수 수(명)`,decreasing = T),]
+kable(richClub)
+
+richClub10 <- richClub[c(1:10),]
+ggplot(richClub10,aes("",richClub10$`소속 선수 수(명)`,fill = factor(richClub10$Club))) + geom_bar(stat = "identity") + coord_polar("y", start=90) + 
+  geom_text(aes(label =richClub10$Club), position = position_stack(vjust = 0.5), cex = 3) +
+  theme_classic() + theme(axis.line = element_blank(),
+          axis.text = element_blank(),
+          axis.ticks = element_blank(),
+          plot.title = element_text(hjust = 0.5, color = "#666666",size = 15)) + labs(x ="" ,y = "", fill = "소속 선수 수(명)", title = "선수가치가 높은 상위 10개의 구단")
+
+```
+
+
